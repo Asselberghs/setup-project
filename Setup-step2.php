@@ -20,6 +20,7 @@
 Script User: <input type="text" name="scriptuser" value=""><br />
 Script Password: <input type="password" name="scriptpass" value=""><br />
 Confirm Script Password: <input type="password" name="scriptpassconfirm" value=""> <br />
+Yubikey: <input type="text" name="yubikey"><br>
 E-mail: <input type="text" name="Email"><br />
 Note: Your e-mail will only be stored in your own database, I am not using it neither for myself nor for a third party.<br /> 
 The reason you should enter your e-mail is, because of the Backup function in the admin area.<br /> 

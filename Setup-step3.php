@@ -18,24 +18,28 @@
 */
 include('ErrorControl.php');
 include('Connect.php');
+include('Yubico.php');
 
 $scriptuser = $_POST['scriptuser'];
 $scriptpassword = $_POST['scriptpass'];
 $scriptpasswordconfirm = $_POST['scriptpassconfirm'];
 $scriptemail = $_POST['Email'];
-
+$yubikey = $_POST['yubikey'];
 
 $scriptuserErrCheck = ErrorControl($scriptuser);
 $scriptpassErrCheck = ErrorControl($scriptpassword);
 $scriptpassconfirmErrCheck = ErrorControl($scriptpasswordconfirm);
 $scriptemailErrCheck = ErrorControl($scriptemail);
+$yubikeyErrCheck=ErrorControl($yubikey);
 
-if($scriptuserErrCheck == TRUE || $scriptpassErrCheck == TRUE || $scriptpassconfirmErrCheck == TRUE || $scriptemailErrCheck == TRUE) {
+if($scriptuserErrCheck == TRUE || $scriptpassErrCheck == TRUE || $scriptpassconfirmErrCheck == TRUE || $scriptemailErrCheck == TRUE || $yubikeyErrCheck == TRUE) {
 	            
 	            $ErrCheck = TRUE;
             }
 			
 if($_POST['submit'] && $_POST['scriptuser'] != '' && $_POST['scriptpass'] != '' && $_POST['scriptpassconfirm'] != '' && $_POST['Email'] != '' && $ErrCheck != TRUE) {
+
+    $otp = $_POST['yubikey'];
 
 	if($_POST['scriptpass'] != $_POST['scriptpassconfirm']) {
 	           
@@ -54,7 +58,9 @@ if($_POST['submit'] && $_POST['scriptuser'] != '' && $_POST['scriptpass'] != '' 
             	    Director text NOT NULL,
             	    Lend varchar(11) NOT NULL,
             	    Loaner varchar(20) NOT NULL,
-            	    Genre varchar(20) NOT NULL                         
+            	    Genre varchar(20) NOT NULL,
+                    Price int(11) NOT NULL,
+                    User varchar(20) NOT NULL                         
             	    )';
 					
 	$create_game_table_query = 'CREATE TABLE Game 
@@ -66,7 +72,9 @@ if($_POST['submit'] && $_POST['scriptuser'] != '' && $_POST['scriptpass'] != '' 
             	    Genre varchar(20) NOT NULL,
             	    Developer varchar(30) NOT NULL,
             	    Lend varchar(11) NOT NULL,
-            	    Loaner varchar(20) NOT NULL           	                             
+            	    Loaner varchar(20) NOT NULL,
+                    Price int(11) NOT NULL,
+                    User varchar(20) NOT NULL           	                             
             	    )';
 					
 	$create_book_table_query = 'CREATE TABLE Book 
@@ -83,7 +91,8 @@ if($_POST['submit'] && $_POST['scriptuser'] != '' && $_POST['scriptpass'] != '' 
 					Price int(11) NOT NULL,
 					Format varchar(9) NOT NULL,
             	    Lend varchar(11) NOT NULL,
-            	    Loaner varchar(20) NOT NULL           	                             
+            	    Loaner varchar(20) NOT NULL,
+                    User varchar(20) NOT NULL           	                             
             	    )';								
             
     $create_users_table_query = 'CREATE TABLE Users
@@ -92,9 +101,11 @@ if($_POST['submit'] && $_POST['scriptuser'] != '' && $_POST['scriptpass'] != '' 
             	    PRIMARY KEY(ID),
             	    User varchar(20) NOT NULL,
             	    Password text NOT NULL,
-                      SALT text NOT NULL,
-                      logged_out_at datetime NOT NULL,
-                      Email varchar(50) NOT NULL
+                    SALT text NOT NULL,
+                    logged_out_at datetime NOT NULL,
+                    Email varchar(50) NOT NULL,
+                    Yubikey varchar(12) NOT NULL,
+                    Yubikey_Used varchar(5) NOT NULL
             	    )';
                 if(isset($_POST['movie'])) {
                 	try {
@@ -137,9 +148,27 @@ if($_POST['submit'] && $_POST['scriptuser'] != '' && $_POST['scriptpass'] != '' 
 					
 	           	$passwordSALT = time().uniqid(rand(),TRUE);
 			    $hashresult = hash('sha512', $scriptpassword.$passwordSALT);
-            	    
-                $populate_user = $db->prepare("INSERT INTO Users (User, Password, SALT, Email) VALUES (:user,:hash,:password,:email)");
-            
+
+
+                if($_POST['yubikey']) {
+
+                    //Yubikey Authentication    
+                    $yubi = new Auth_Yubico('28274', 'eqp96B8xrLUvu7+VybDGd9l14no=');
+                    $auth = $yubi->verify($otp);
+                    if (PEAR::isError($auth)) {
+                        print "<p>Authentication failed: " . $auth->getMessage()."</p>";
+                        print "<p>Debug output from server: " . $yubi->getLastResponse()."</p>";
+                    } else {
+                            $otp_id = substr($otp, 0, 12);
+                            $yubikey_used = TRUE;
+                            $populate_user->bindParam(':yubikey', $otp_id, PDO::PARAM_STR);
+                            $populate_user->bindParam(':yubikeyused', $yubikey_used, PDO::PARAM_STR);
+                        }
+                $populate_user = $db->prepare("INSERT INTO Users (User, Password, SALT, Email, Yubikey, Yubikey_Used) VALUES (:user,:hash,:password,:email,:yubikey,:yubikeyused)");
+                } else {
+            	$populate_user = $db->prepare("INSERT INTO Users (User, Password, SALT, Email) VALUES (:user,:hash,:password,:email)");
+                }
+
                 $populate_user->bindParam(':user', $scriptuser, PDO::PARAM_STR);
                 $populate_user->bindParam(':hash', $hashresult, PDO::PARAM_STR);
                 $populate_user->bindParam(':password', $passwordSALT, PDO::PARAM_STR);
